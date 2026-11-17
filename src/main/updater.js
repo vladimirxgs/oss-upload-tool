@@ -27,6 +27,16 @@ function compareVersions(a, b) {
   return 0;
 }
 
+// 从 release 的 tag_name / name 里提取语义化版本号（优先 tag，回退 name）。
+// 兼容 tag 被误填成日期等情况：只要 tag 或 name 里写了 vX.Y.Z 就能正确识别。
+function extractVersion(release) {
+  const tag = String(release.tag_name || '');
+  const name = String(release.name || '');
+  const re = /v?(\d+\.\d+(?:\.\d+)?)/i;
+  const m = tag.match(re) || name.match(re);
+  return m ? m[1] : tag.replace(/^v/i, '');
+}
+
 // 走 Electron net（自动使用系统代理），请求 JSON。
 function httpGetJson(url) {
   return new Promise((resolve, reject) => {
@@ -74,14 +84,13 @@ function pickAsset(release) {
 async function checkForUpdate() {
   const current = app.getVersion();
   const release = await httpGetJson(API_URL);
-  const tag = String(release.tag_name || '');
-  const latest = tag.replace(/^v/i, '');
+  const latest = extractVersion(release);
   const assetUrl = pickAsset(release);
   return {
     hasUpdate: compareVersions(latest, current) > 0,
     current,
-    latest: tag || latest,
-    name: release.name || tag || latest,
+    latest,
+    name: release.name || release.tag_name || latest,
     body: release.body || '',
     htmlUrl: release.html_url || RELEASES_URL,
     assetUrl,

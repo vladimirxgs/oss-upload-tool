@@ -1,8 +1,8 @@
 {
   "name": "oss-upload-tool",
-  "version": "1.11.0",
+  "version": "1.11.1",
   "description": "跨平台 OSS 可视化上传工具（基于 ossutil）",
-  "main": "updated_src/src/main/main.js",
+  "main": "src/main/main.js",
   "author": "viktor",
   "license": "MIT",
   "scripts": {
