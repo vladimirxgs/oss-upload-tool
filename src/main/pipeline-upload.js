@@ -145,7 +145,17 @@ async function remoteCommit(storage, rawUri) {
 async function verifyInventory(storage, rawUri, files) {
   const remote = (await storage.listObjects(rawUri)).filter((f) => !isExcluded(f.name));
   const byName = new Map(remote.map((f) => [f.name, f.size]));
-  if (remote.length !== files.length || files.some((f) => byName.get(f.path) !== f.size)) throw new Error('远端文件列表或大小与本地清单不一致；未发送完成标记，请检查残留文件后重试: ' + rawUri);
+  const localNames = new Set(files.map((f) => f.path));
+  const extra = remote.filter((f) => !localNames.has(f.name)).map((f) => f.name);
+  const missing = files.filter((f) => !byName.has(f.path)).map((f) => f.path);
+  const sizeMismatch = files.filter((f) => byName.has(f.path) && byName.get(f.path) !== f.size).map((f) => f.path);
+  if (extra.length || missing.length || sizeMismatch.length) {
+    const parts = [];
+    if (extra.length) parts.push(`远端多了 ${extra.length} 个对象（如 ${extra.slice(0, 3).join('、')}）`);
+    if (missing.length) parts.push(`远端缺 ${missing.length} 个文件（如 ${missing.slice(0, 3).join('、')}）`);
+    if (sizeMismatch.length) parts.push(`大小不一致 ${sizeMismatch.length} 个（如 ${sizeMismatch.slice(0, 3).join('、')}）`);
+    throw new Error('远端文件与本地清单不一致，未发送完成标记：' + parts.join('；') + '。请检查后重试: ' + rawUri);
+  }
 }
 async function uploadDataset(dataset, storage, { onLine = () => {}, onBytes = () => {}, temporaryRoot = os.tmpdir() } = {}) {
   const log = (text) => onLine(text, false);
@@ -249,7 +259,17 @@ async function remoteLgCommit(storage, rawUri) {
 async function verifyInventoryLg(storage, rawUri, files) {
   const remote = (await storage.listObjects(rawUri)).filter((f) => !isLgExcluded(f.name));
   const byName = new Map(remote.map((f) => [f.name, f.size]));
-  if (remote.length !== files.length || files.some((f) => byName.get(f.path) !== f.size)) throw new Error('远端文件列表或大小与本地清单不一致；未发送完成标记，请检查残留文件后重试: ' + rawUri);
+  const localNames = new Set(files.map((f) => f.path));
+  const extra = remote.filter((f) => !localNames.has(f.name)).map((f) => f.name);
+  const missing = files.filter((f) => !byName.has(f.path)).map((f) => f.path);
+  const sizeMismatch = files.filter((f) => byName.has(f.path) && byName.get(f.path) !== f.size).map((f) => f.path);
+  if (extra.length || missing.length || sizeMismatch.length) {
+    const parts = [];
+    if (extra.length) parts.push(`远端多了 ${extra.length} 个对象（如 ${extra.slice(0, 3).join('、')}）`);
+    if (missing.length) parts.push(`远端缺 ${missing.length} 个文件（如 ${missing.slice(0, 3).join('、')}）`);
+    if (sizeMismatch.length) parts.push(`大小不一致 ${sizeMismatch.length} 个（如 ${sizeMismatch.slice(0, 3).join('、')}）`);
+    throw new Error('远端文件与本地清单不一致，未发送完成标记：' + parts.join('；') + '。请检查后重试: ' + rawUri);
+  }
 }
 async function uploadLgOriginDataset(dataset, storage, { onLine = () => {}, onBytes = () => {}, temporaryRoot = os.tmpdir() } = {}) {
   const log = (text) => onLine(text, false);
