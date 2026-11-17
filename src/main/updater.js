@@ -167,23 +167,26 @@ function locateExtractedTarget(newDir, platform) {
 }
 
 // 生成替换脚本，返回脚本路径。
-function writeUpdateScript(tmp, newDir, installRoot, exe, platform) {
+function writeUpdateScript(tmp, newDir, installRoot, exe, platform, pid) {
   const target = locateExtractedTarget(newDir, platform);
   if (platform === 'win32') {
     // PowerShell 脚本（UTF-8 BOM，中文路径稳妥）
-    const procName = path.basename(exe).replace(/\.exe$/i, '');
-    const logPath = path.join(path.dirname(installRoot), 'oss-update.log');
+    const exeName = path.basename(exe);
+    const logPath = path.join(installRoot, '_update.log');
     const q = (s) => `'${String(s).replace(/'/g, "''")}'`;
     const ps = [
       `$log = ${q(logPath)}`,
-      `$procName = ${q(procName)}`,
+      `$mainPid = ${pid}`,
       `"update start $(Get-Date)" | Out-File -FilePath $log -Encoding UTF8`,
-      // 轮询等待主进程真正退出（最多 30 秒），确保 exe 解锁后再覆盖
+      // 等主进程真正退出（最多 30 秒），确保 exe 解锁
       'for ($i = 0; $i -lt 30; $i++) {',
-      '  if (-not (Get-Process -Name $procName -ErrorAction SilentlyContinue)) { break }',
+      '  if (-not (Get-Process -Id $mainPid -ErrorAction SilentlyContinue)) { break }',
       '  Start-Sleep -Seconds 1',
       '}',
-      `"app exited, copying $(Get-Date)" | Out-File -FilePath $log -Append -Encoding UTF8`,
+      // 兜底：强制结束残留的渲染/GPU 进程
+      `taskkill /F /IM ${q(exeName)} 2>$null | Out-Null`,
+      'Start-Sleep -Seconds 2',
+      `"app exited $(Get-Date)" | Out-File -FilePath $log -Append -Encoding UTF8`,
       `robocopy ${q(target.path)} ${q(installRoot)} /E /IS /IT /R:10 /W:2 /NFL /NDL /NJH /NJS >> $log 2>&1`,
       `"robocopy exit $LASTEXITCODE $(Get-Date)" | Out-File -FilePath $log -Append -Encoding UTF8`,
       `Start-Process -FilePath ${q(exe)}`,
@@ -236,7 +239,7 @@ async function applyUpdate(assetUrl, onProgress) {
     const newDir = path.join(tmp, 'new');
     fs.mkdirSync(newDir, { recursive: true });
     extract(archivePath, newDir, platform);
-    const scriptPath = writeUpdateScript(tmp, newDir, installRoot, exe, platform);
+    const scriptPath = writeUpdateScript(tmp, newDir, installRoot, exe, platform, process.pid);
     launchUpdater(scriptPath, platform);
   } catch (err) {
     fs.rmSync(tmp, { recursive: true, force: true });
