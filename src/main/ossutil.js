@@ -230,8 +230,7 @@ function parseLsDirs(output) {
   const dirs = [];
   for (const line of output.split('\n')) {
     const t = line.trim();
-    if (!t) continue;
-    if (/^(LastModifiedTime|ObjectName|Succeed|Total|Error|Progress)/.test(t)) continue;
+    if (!t || !t.startsWith('oss://')) continue; // 只取目录行，跳过汇总/耗时等行
     const rel = stripBucket(t.split(/\s+/).pop()).replace(/\/+$/, '');
     if (rel) dirs.push(rel);
   }
@@ -243,8 +242,10 @@ async function listDir(cfgPath, prefix = '', bucket = '') {
   const b = String(bucket || '').trim() || BUCKET;
   const base = `oss://${b}/${prefix}`;
   const dirsOut = await run(['ls', base, '--config-file', cfgPath, '-d']);
-  const filesOut = await run(['ls', base, '--config-file', cfgPath, '--only-current-dir', '--limited-num=1000']);
-  return { prefix, bucket: b, dirs: parseLsDirs(dirsOut), files: parseLsObjects(filesOut, prefix) };
+  const filesOut = await run(['ls', base, '--config-file', cfgPath, '--limited-num=1000']);
+  // ossutil ls 会递归列出所有对象，只保留当前层级（相对路径不含 /）的文件
+  const files = parseLsObjects(filesOut, prefix).filter((f) => !f.name.includes('/'));
+  return { prefix, bucket: b, dirs: parseLsDirs(dirsOut), files };
 }
 
 module.exports = {
