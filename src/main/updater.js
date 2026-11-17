@@ -219,7 +219,14 @@ function writeUpdateScript(tmp, newDir, installRoot, exe, platform, pid) {
 // 启动替换脚本（独立进程），随后退出主程序。
 function launchUpdater(scriptPath, platform) {
   if (platform === 'win32') {
-    spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', scriptPath], { detached: true, stdio: 'ignore' }).unref();
+    // 用 cmd /c start 启动一个完全独立的 PowerShell 进程，避免被主进程退出连带终止。
+    // 之前 spawn + detached + stdio:ignore 在部分 Windows 上会导致脚本根本没执行。
+    const sysRoot = process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows';
+    const psExe = path.join(sysRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+    const cmd = `start "" "${psExe}" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "${scriptPath}"`;
+    const child = spawn('cmd.exe', ['/d', '/s', '/c', cmd], { detached: true, stdio: 'ignore', windowsHide: true });
+    child.on('error', () => {});
+    child.unref();
   } else {
     spawn('sh', [scriptPath], { detached: true, stdio: 'ignore' }).unref();
   }
