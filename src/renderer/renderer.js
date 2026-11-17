@@ -485,6 +485,11 @@ el.settingsForm.addEventListener('submit', async (e) => {
 
 // —— 查看（仿 OSS Browser 逐级浏览）——
 let viewPrefix = '';
+let viewMode = 'list';        // 'list' 列表视图 / 'details' 详细视图
+let lastBrowserData = null;   // 最近一次浏览数据，切换视图时复用，不重新请求
+
+const FOLDER_SVG = '<svg viewBox="0 0 24 24" class="row-icon folder-icon"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+const FILE_SVG = '<svg viewBox="0 0 24 24" class="row-icon file-icon"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M14 3v5h5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
 
 function crumbSegments(prefix) {
   const segs = [{ label: siteConfig.bucket || BUCKET, prefix: '' }];
@@ -501,6 +506,7 @@ function crumbSegments(prefix) {
 
 function renderBrowser(data) {
   viewPrefix = data.prefix || '';
+  lastBrowserData = data;
   el.resultBody.dataset.mode = 'browser';
 
   const segs = crumbSegments(viewPrefix);
@@ -510,35 +516,47 @@ function renderBrowser(data) {
 
   const dirs = data.dirs || [];
   const files = data.files || [];
-
-  const foldersHtml = dirs.map((d) => {
-    const name = d.split('/').filter(Boolean).pop() || d;
-    return `<div class="folder" data-prefix="${escapeHtml(d + '/')}" title="${escapeHtml(d)}">
-      <svg viewBox="0 0 24 24" class="folder-icon"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
-      <span>${escapeHtml(name)}</span>
-    </div>`;
-  }).join('');
-
-  const filesHtml = files.map((f) => `
-    <tr>
-      <td class="name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</td>
-      <td class="size">${formatSize(f.size)}</td>
-      <td class="time">${escapeHtml((f.lastModified || '').slice(0, 19))}</td>
-    </tr>`).join('');
-
   const count = dirs.length + files.length;
   el.resultTitle.textContent = `桶内文件 · ${count} 项`;
+
+  const dirName = (d) => d.split('/').filter(Boolean).pop() || d;
+  let listHtml;
+  if (viewMode === 'details') {
+    // 详细视图：文件夹 + 文件统一进表格（名称 / 大小 / 修改时间）
+    const rows = [
+      ...dirs.map((d) =>
+        `<tr class="row folder" data-prefix="${escapeHtml(d + '/')}" title="${escapeHtml(d)}"><td class="name">${FOLDER_SVG}${escapeHtml(dirName(d))}</td><td class="size"></td><td class="time"></td></tr>`
+      ),
+      ...files.map((f) =>
+        `<tr class="row file" title="${escapeHtml(f.name)}"><td class="name">${FILE_SVG}${escapeHtml(f.name)}</td><td class="size">${formatSize(f.size)}</td><td class="time">${escapeHtml((f.lastModified || '').slice(0, 19))}</td></tr>`
+      ),
+    ].join('');
+    listHtml = `<div class="table-wrap"><table><thead><tr><th>名称</th><th>大小</th><th>修改时间</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  } else {
+    // 列表视图：每项一行（图标 + 名称）
+    listHtml = [
+      ...dirs.map((d) =>
+        `<div class="row folder" data-prefix="${escapeHtml(d + '/')}" title="${escapeHtml(d)}">${FOLDER_SVG}<span class="row-name">${escapeHtml(dirName(d))}</span></div>`
+      ),
+      ...files.map((f) =>
+        `<div class="row file" title="${escapeHtml(f.name)}">${FILE_SVG}<span class="row-name">${escapeHtml(f.name)}</span></div>`
+      ),
+    ].join('');
+  }
 
   el.resultBody.innerHTML = `
     <div class="browser">
       <div class="browser-toolbar">
         <button class="tool-btn" id="btnUp" title="上一级"${viewPrefix ? '' : ' disabled'}>← 上级</button>
         <div class="breadcrumb">${crumbs}</div>
+        <div class="view-toggle">
+          <button class="view-btn${viewMode === 'list' ? ' active' : ''}" data-view="list" title="列表视图">☰</button>
+          <button class="view-btn${viewMode === 'details' ? ' active' : ''}" data-view="details" title="详细视图">☷</button>
+        </div>
         <button class="tool-btn" id="btnRefresh" title="刷新">↻ 刷新</button>
       </div>
-      <div class="browser-list">
-        ${foldersHtml ? `<div class="folders">${foldersHtml}</div>` : ''}
-        ${filesHtml ? `<div class="table-wrap"><table><thead><tr><th>文件名</th><th>大小</th><th>修改时间</th></tr></thead><tbody>${filesHtml}</tbody></table></div>` : ''}
+      <div class="browser-list${viewMode === 'list' ? ' list-view' : ' details-view'}">
+        ${listHtml}
         ${count === 0 ? '<div class="empty">（空目录）</div>' : ''}
       </div>
     </div>`;
@@ -559,6 +577,12 @@ async function loadDir(prefix) {
 el.btnView.addEventListener('click', () => { showResult('查看'); loadDir(''); });
 
 el.resultBody.addEventListener('click', (e) => {
+  const viewBtn = e.target.closest('.view-btn');
+  if (viewBtn) {
+    viewMode = viewBtn.dataset.view;
+    if (lastBrowserData) renderBrowser(lastBrowserData);
+    return;
+  }
   const crumb = e.target.closest('.crumb');
   if (crumb) { loadDir(crumb.dataset.prefix || ''); return; }
   const folder = e.target.closest('.folder');

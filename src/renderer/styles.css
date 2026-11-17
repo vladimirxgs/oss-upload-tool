@@ -410,6 +410,26 @@ td.time { white-space: nowrap; color: var(--muted); font-size: 12px; }
 .folder span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .empty { padding: 24px; text-align: center; color: var(--muted); font-size: 13px; }
 
+/* 视图切换按钮 */
+.view-toggle { display: flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; flex: none; }
+.view-btn { padding: 5px 10px; border: none; background: #fff; font-size: 13px; line-height: 1; cursor: pointer; color: #555c66; }
+.view-btn + .view-btn { border-left: 1px solid var(--line); }
+.view-btn.active { background: var(--primary); color: #fff; }
+.view-btn:hover:not(.active) { background: #fff4ec; }
+
+/* 列表视图 */
+.browser-list.list-view { gap: 1px; }
+.browser-list.list-view .row { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 7px; font-size: 13px; color: var(--ink); }
+.browser-list.list-view .row.folder { cursor: pointer; }
+.browser-list.list-view .row:hover { background: #fff4ec; }
+.row-icon { width: 16px; height: 16px; flex: none; }
+.file-icon { color: #9aa1ab; }
+.row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 详细视图 */
+.browser-list.details-view .row.folder { cursor: pointer; }
+.browser-list.details-view td.name svg { vertical-align: -3px; margin-right: 6px; }
+
 /* 实时网速（独立区块） */
 .speed {
   display: flex;
