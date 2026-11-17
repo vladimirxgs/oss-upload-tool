@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>OSS 上传工具</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>OSS 上传工具</h1>
+      <div class="status" id="status">加载中…</div>
+    </header>
+
+    <main class="content">
+      <div class="actions">
+        <button class="btn-card btn-upload" id="btnUpload">
+          <svg viewBox="0 0 24 24" class="icon" aria-hidden="true">
+            <path d="M12 16V4m0 0 4 4m-4-4-4 4" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span class="label">上传</span>
+          <span class="hint">选择数据集 / 房间目录</span>
+        </button>
+        <button class="btn-card btn-view" id="btnView">
+          <svg viewBox="0 0 24 24" class="icon" aria-hidden="true">
+            <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span class="label">查看</span>
+          <span class="hint">查看桶内已有文件</span>
+        </button>
+      </div>
+
+      <div class="result hidden" id="result">
+        <div class="result-head"><span id="resultTitle"></span></div>
+        <div class="speed hidden" id="speed">
+          <div class="speed-stat">
+            <span class="speed-label">速度</span>
+            <span class="speed-value" id="speedRate">—</span>
+          </div>
+          <div class="speed-stat">
+            <span class="speed-label">已上传</span>
+            <span class="speed-value" id="speedBytes">—</span>
+          </div>
+          <div class="speed-stat">
+            <span class="speed-label">用时</span>
+            <span class="speed-value" id="speedTime">—</span>
+          </div>
+        </div>
+        <div class="progress hidden" id="progress">
+          <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+          <div class="progress-text" id="progressText"></div>
+        </div>
+        <div class="result-body" id="resultBody"></div>
+      </div>
+
+      <div class="drop-hint" id="dropHint">也可将文件 / 目录拖入窗口直接上传</div>
+    </main>
+
+    <footer class="footer">
+      <button class="btn-config" id="btnUpdate" title="检查更新">⤴ 更新</button>
+      <button class="btn-config" id="btnFeishu" title="负责人飞书账号">🛰 飞书</button>
+      <button class="btn-config" id="btnHistory" title="上传记录">🕘 记录</button>
+      <button class="btn-config" id="btnConfig" title="配置">⚙ 配置</button>
+    </footer>
+  </div>
+
+  <div class="modal hidden" id="configModal">
+    <div class="modal-box">
+      <div class="modal-head">配置</div>
+      <form id="configForm">
+        <label>Endpoint
+          <input id="cfgEndpoint" placeholder="oss-cn-hangzhou.aliyuncs.com" spellcheck="false" />
+        </label>
+        <label>AccessKey ID（AK）
+          <input id="cfgAkid" spellcheck="false" />
+        </label>
+        <label>AccessKey Secret（SK）
+          <input id="cfgAksecret" type="password" />
+        </label>
+        <label>桶（Bucket）
+          <select id="cfgBucket">
+            <option value="hw-upload">hw-upload（ISuit-V3 格式）</option>
+            <option value="prt-huawei">prt-huawei（UMI_v3 格式）</option>
+          </select>
+        </label>
+        <label>城市名称首字母缩写（自动转大写）
+          <input id="cfgCity" spellcheck="false" placeholder="如 XZ" />
+        </label>
+        <label>房间号（数字，自动补 room 前缀）
+          <input id="cfgRoomId" spellcheck="false" placeholder="如 001 → room001" />
+        </label>
+        <div class="modal-actions">
+          <button type="button" id="cfgCancel">取消</button>
+          <button type="submit" class="primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="feishuModal">
+    <div class="modal-box">
+      <div class="modal-head">项目负责人飞书群机器人（用于「其他」类型确认）</div>
+      <form id="feishuForm">
+        <label>群机器人 Webhook 地址
+          <input id="fsWebhookUrl" spellcheck="false" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxxx" />
+        </label>
+        <label>自定义关键词（机器人安全设置选「自定义关键词」时填）
+          <input id="fsKeyword" spellcheck="false" placeholder="如 上传，留空则不加关键词" />
+        </label>
+        <label>签名密钥（机器人安全设置选「签名校验」时填）
+          <input id="fsSecret" type="password" placeholder="留空则不签名" />
+        </label>
+        <p class="feishu-help">在飞书群里「设置 → 群机器人 → 添加自定义机器人」得到一个 Webhook 地址，粘贴到上面即可。安全设置至少选一种：推荐选「自定义关键词」填一个词（本工具发送的消息里已含「上传」）；若选了「签名校验」则把密钥填到上面。选「其他」类型时会把确认消息发到该群，负责人在群里确认后，由操作者点「负责人已确认」解锁上传。</p>
+        <div class="modal-actions">
+          <button type="button" id="fsCancel">取消</button>
+          <button type="submit" class="primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="settingsModal">
+    <div class="modal-box">
+      <div class="modal-head">上传设置</div>
+      <form id="settingsForm">
+        <div class="field-label">数据类型（必选）</div>
+        <div class="type-group" id="typeGroup">
+          <label class="type-opt"><input type="radio" name="dtype" value="normal" /><span>normal</span></label>
+          <label class="type-opt"><input type="radio" name="dtype" value="calibration" /><span>calibration</span></label>
+          <label class="type-opt"><input type="radio" name="dtype" value="MK_MK" /><span>MK_MK</span></label>
+          <label class="type-opt"><input type="radio" name="dtype" value="MK_UMI" /><span>MK_UMI</span></label>
+          <label class="type-opt"><input type="radio" name="dtype" value="LG_MK" /><span>LG_MK</span></label>
+          <label class="type-opt"><input type="radio" name="dtype" value="LG_Origin" /><span>LG_Origin</span></label>
+          <label class="type-opt"><input type="radio" name="dtype" value="other" /><span>其他</span></label>
+        </div>
+        <label>采集日期（必选）
+          <input type="date" id="cfgDate" />
+        </label>
+        <div class="type-instruction" id="typeInstruction">normal / calibration：选择完整数据集或房间目录，上传完成后自动提交管线。请在采集结束后上传。</div>
+        <div class="upload-hint" id="uploadHint">选择包含 ISuit-V3_xxx 的目录即可</div>
+        <label>目标子目录（自动拼接到 oss://hw-upload/raw_data/raw_data_YYMMDD/ 之后，可修改）
+          <input id="pathInput" spellcheck="false" placeholder="如 umi_normal / mech_mind / k1_mechmind / temp_YYMMDD" />
+        </label>
+        <div class="path-preview" id="pathPreview"></div>
+        <div class="path-hint hidden" id="pathHint">此选项用于暂未确定的采集类型，注意上传路径名称要修改</div>
+        <div class="feishu-status hidden" id="feishuStatus"></div>
+        <div class="feishu-actions hidden" id="feishuActions">
+          <button type="button" class="primary" id="feishuSend">发送确认请求</button>
+          <button type="button" id="feishuApprove">负责人已确认</button>
+        </div>
+        <div class="form-error hidden" id="settingsError"></div>
+        <div class="modal-actions">
+          <button type="button" id="settingsCancel">取消</button>
+          <button type="submit" class="primary" id="settingsSubmit">确定</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="previewModal">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-head">上传预览 · 确认目标路径</div>
+      <label>目标子目录（自动拼接到 oss://hw-upload/raw_data/raw_data_YYMMDD/ 之后，可修改）
+        <input id="previewPrefix" spellcheck="false" />
+      </label>
+      <div class="preview-count" id="previewCount"></div>
+      <div class="preview-list" id="previewList"></div>
+      <div class="form-error hidden" id="previewError"></div>
+      <div class="modal-actions">
+        <button type="button" id="previewCancel">取消</button>
+        <button type="button" class="primary" id="previewConfirm">开始上传</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../shared/upload-layout.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>

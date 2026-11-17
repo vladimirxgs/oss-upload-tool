@@ -1,0 +1,40 @@
+appId: com.example.oss-upload-tool
+productName: OSS Upload Tool
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - src/**/*
+  - package.json
+
+# ossutil 二进制随包分发，放在 resources/ossutil 下，不打包进 asar
+extraResources:
+  - from: resources/ossutil
+    to: ossutil
+
+asar: true
+afterPack: scripts/after-pack.js
+
+mac:
+  icon: build/icon.icns
+  category: public.app-category.utilities
+  target:
+    - dmg
+    - zip
+
+win:
+  icon: build/icon.ico
+  signAndEditExecutable: false
+  target:
+    - nsis
+
+linux:
+  icon: build/icon.png
+  category: Utility
+  target:
+    - AppImage
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

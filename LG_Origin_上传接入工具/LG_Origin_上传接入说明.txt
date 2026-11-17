@@ -1,0 +1,51 @@
+LG_Origin 自动直传接入约定
+
+1. 来源与目标
+来源：oss://hw-upload/raw_data/raw_data_YYMMDD/LG_Origin/[任意层级的房间目录]/PRT_城市_room编号R次数_YYYY-MM-DD-HHMMSS/
+目标：obs://s3-b-gy-asset-aifm-nlp-alg-exp/data/K1/origin/<采集文件夹原名>/
+示例重复的 PRT_XZ_room003/PRT_XZ_room003/ 仅用于定位，不复制到 OBS 的采集文件夹外层。
+只支持 LG_Origin，常规 normal / calibration 管线规则保持原样。
+
+2. 上传顺序（必须按顺序）
+先上传全部业务文件，包括 0 字节业务文件；完成后生成文件清单。
+然后上传 _LG_ORIGIN_MANIFEST.json，最后单独上传 _LG_ORIGIN_READY.json。
+完成后必须保持整个源目录不变。不可把完成标记和业务文件放进同一个并行/递归上传批次。
+两个控制文件只保留在 OSS，OBS 仅发布业务文件；OSS 的空目录占位对象不计为业务文件。
+
+3. 生成工具（Python 3，无第三方依赖）
+把 lg_origin_finalize.py 放在上传机上，对本地完整数据目录运行：
+
+python3 lg_origin_finalize.py "/data/PRT_XZ_room003R1_2026-10-30-175417" --output-dir "/tmp/lg-origin-completion" --oss-uri "oss://hw-upload/raw_data/raw_data_261030/LG_Origin/PRT_XZ_room003/PRT_XZ_room003/PRT_XZ_room003R1_2026-10-30-175417/"
+
+输出目录必须在数据目录之外。工具会逐文件计算 SHA-256，拒绝符号链接，并检查生成期间文件是否变化。
+业务文件完整上传之后，再按下面顺序上传两个小文件：
+
+ossutil cp "/tmp/lg-origin-completion/_LG_ORIGIN_MANIFEST.json" "oss://hw-upload/raw_data/raw_data_261030/LG_Origin/PRT_XZ_room003/PRT_XZ_room003/PRT_XZ_room003R1_2026-10-30-175417/_LG_ORIGIN_MANIFEST.json" -f
+ossutil cp "/tmp/lg-origin-completion/_LG_ORIGIN_READY.json" "oss://hw-upload/raw_data/raw_data_261030/LG_Origin/PRT_XZ_room003/PRT_XZ_room003/PRT_XZ_room003R1_2026-10-30-175417/_LG_ORIGIN_READY.json" -f
+
+4. 文件清单格式
+{
+  "schema_version": 1,
+  "dataset_type": "LG_Origin",
+  "dataset_id": "PRT_XZ_room003R1_2026-10-30-175417",
+  "files": [
+    {"path": "map.las", "size": 123456, "sha256": "真实文件内容的64位小写SHA-256"}
+  ]
+}
+files 必须列出全部业务文件（相对路径、字节数、SHA-256），不列两个控制文件本身。
+READY 格式：{"schema_version":1,"manifest_sha256":"清单文件原始字节的64位小写SHA-256"}。
+请优先用工具生成，避免手填校验值或占位值。
+
+5. 自动接入与校验
+ECS-C 每 60 秒扫描全部 raw_data_YYMMDD/LG_Origin/ 下的完成标记。
+无完成标记、缺少文件、多余文件、大小不一致、元数据错误的数据不入发布队列，原因记录在发现服务日志。
+完整清单通过后创建 LG_Origin 类型任务，直接进入现有 OBS 发布队列，不运行 Step1/Step2/UMI QC。
+C 从 OSS 下载每个文件时核对 SHA-256，沿用全机并发、内存、临时磁盘限制；上传后核对 OBS 长度及校验信息。
+相同来源和相同清单不重复建任务。不同来源/版本占用同名 OBS 目标时隔离；不会覆盖没有本次发布回执的已有 OBS 数据。
+源目录发生变动时停止确认交付，需核对后人工处理。
+
+6. 看板
+数据集状态 -> 全部类型 -> LG_Origin。
+只提供：OBS 发布、已完成、等待重试、已隔离、已删除。
+失败后的等待不占用当前处理槽位；沿用现有有限次数、逐步延长等待间隔的重试策略。
+“已删除”是任务软删除，不物理删除 OSS/OBS 数据。

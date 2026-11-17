@@ -1,0 +1,22 @@
+{
+  "name": "oss-upload-tool",
+  "version": "1.11.0",
+  "description": "跨平台 OSS 可视化上传工具（基于 ossutil）",
+  "main": "updated_src/src/main/main.js",
+  "author": "viktor",
+  "license": "MIT",
+  "scripts": {
+    "prepare": "node scripts/prepare-ossutil.js",
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux",
+    "dist:all": "electron-builder --mac --win --linux"
+  },
+  "devDependencies": {
+    "adm-zip": "^0.5.16",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  }
+}

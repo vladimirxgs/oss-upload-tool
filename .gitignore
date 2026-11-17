@@ -1,0 +1,22 @@
+# 依赖与构建产物
+node_modules/
+dist/
+dist-umi/
+resources/ossutil/
+ossutil_output/
+.ossutil_checkpoint/
+
+# 旧版源码目录（当前源码在 updated_src/，只排除根目录下的 src/）
+/src/
+
+# 本地开发用的资源软链（打包时由构建脚本单独拷贝 resources/）
+updated_src/resources
+
+# 系统文件
+.DS_Store
+*.log
+
+# 原始采集数据（体积大，不入库）
+ISuit-V3_*/
+UMI_v3_*/
+prt-huawei/UMI_v3_*/
