@@ -171,10 +171,22 @@ function writeUpdateScript(tmp, newDir, installRoot, exe, platform) {
   const target = locateExtractedTarget(newDir, platform);
   if (platform === 'win32') {
     // PowerShell 脚本（UTF-8 BOM，中文路径稳妥）
+    const procName = path.basename(exe).replace(/\.exe$/i, '');
+    const logPath = path.join(path.dirname(installRoot), 'oss-update.log');
+    const q = (s) => `'${String(s).replace(/'/g, "''")}'`;
     const ps = [
-      'Start-Sleep -Seconds 2',
-      `robocopy "${target.path}" "${installRoot}" /E /IS /IT /R:5 /W:2 /NFL /NDL /NJH /NJS | Out-Null`,
-      `Start-Process -FilePath "${exe}"`,
+      `$log = ${q(logPath)}`,
+      `$procName = ${q(procName)}`,
+      `"update start $(Get-Date)" | Out-File -FilePath $log -Encoding UTF8`,
+      // 轮询等待主进程真正退出（最多 30 秒），确保 exe 解锁后再覆盖
+      'for ($i = 0; $i -lt 30; $i++) {',
+      '  if (-not (Get-Process -Name $procName -ErrorAction SilentlyContinue)) { break }',
+      '  Start-Sleep -Seconds 1',
+      '}',
+      `"app exited, copying $(Get-Date)" | Out-File -FilePath $log -Append -Encoding UTF8`,
+      `robocopy ${q(target.path)} ${q(installRoot)} /E /IS /IT /R:10 /W:2 /NFL /NDL /NJH /NJS >> $log 2>&1`,
+      `"robocopy exit $LASTEXITCODE $(Get-Date)" | Out-File -FilePath $log -Append -Encoding UTF8`,
+      `Start-Process -FilePath ${q(exe)}`,
     ].join('\n');
     const scriptPath = path.join(tmp, 'update.ps1');
     fs.writeFileSync(scriptPath, '﻿' + ps, 'utf8');
